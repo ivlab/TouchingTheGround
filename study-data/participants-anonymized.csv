@@ -1,0 +1,26 @@
+ParticipantID,Are you 18 years of age or older?,Are you able to communicate in written and spoken English?,Are you fully-sighted or have corrective lenses that enable full sight?,Are you pregnant?,"Do you have a history of epilepsy, seizures, or severe motion sickness?","How many times have you used topographic maps before today (e.g., hiking maps that show elevation with contour lines)?","How many times have you used virtual reality before today (e.g., Oculus Quest or HTC VIVE)?","How many hours on average do you play video, computer, or mobile games?",Age,BiologicalSex,GenderIdentity,Handedness
+110,Yes,Yes,Yes,No,No,1 to 5 times,1 to 5 times,Less than 30min a day,24,F,F,R
+102,Yes,Yes,Yes,No,No,1 to 5 times,6 to 20 times,30min to 2hr a day,23,F,F,R
+103,Yes,Yes,Yes,No,No,Never,1 to 5 times,30min to 2hr a day,24,M,M,R
+100,Yes,Yes,Yes,No,No,1 to 5 times,Never,2hr to 6hr a day,27,F,F,L
+101,Yes,Yes,Yes,No,No,1 to 5 times,More than 20 times,2hr to 6hr a day,27,M,M,R
+107,Yes,Yes,Yes,No,No,Never,Never,30min to 2hr a day,22,M,M,R
+104,Yes,Yes,Yes,No,No,1 to 5 times,1 to 5 times,2hr to 6hr a day,29,M,M,R
+109,Yes,Yes,Yes,No,No,Never,1 to 5 times,Less than 30min a day,30,M,M,R
+106,Yes,Yes,Yes,No,No,1 to 5 times,More than 20 times,30min to 2hr a day,27,F,F,R
+105,Yes,Yes,Yes,No,No,1 to 5 times,More than 20 times,2hr to 6hr a day,20,M,M,L
+111,Yes,Yes,Yes,No,No,1 to 5 times,More than 20 times,30min to 2hr a day,26,F,F,R
+108,Yes,Yes,Yes,No,No,6 to 20 times,More than 20 times,2hr to 6hr a day,25,M,M,R
+114,Yes,Yes,Yes,No,No,Never,Never,More than 6hr a day,34,F,F,R
+112,Yes,Yes,Yes,No,No,More than 20 times,Never,30min to 2hr a day,25,M,M,R
+113,Yes,Yes,Yes,No,No,Never,Never,"I don't play video, computer, or mobile games",21,F,F,R
+115,Yes,Yes,Yes,No,No,1 to 5 times,More than 20 times,30min to 2hr a day,22,F,F,R
+123,Yes,Yes,Yes,No,No,1 to 5 times,1 to 5 times,2hr to 6hr a day,20,M,M,L
+117,Yes,Yes,Yes,No,No,Never,1 to 5 times,2hr to 6hr a day,20,F,F,R
+116,Yes,Yes,Yes,No,No,1 to 5 times,1 to 5 times,2hr to 6hr a day,19,F,F,R
+122,Yes,Yes,Yes,No,No,1 to 5 times,1 to 5 times,2hr to 6hr a day,20,F,F,R
+125,Yes,Yes,Yes,No,No,6 to 20 times,More than 20 times,2hr to 6hr a day,26,M,M,R
+124,Yes,Yes,Yes,No,No,More than 20 times,Never,Less than 30min a day,52,M,M,R
+118,Yes,Yes,Yes,No,No,More than 20 times,More than 20 times,30min to 2hr a day,20,M,M,R
+120,Yes,Yes,Yes,No,No,1 to 5 times,1 to 5 times,Less than 30min a day,21,M,M,R
+121,Yes,Yes,Yes,No,No,1 to 5 times,1 to 5 times,30min to 2hr a day,25,M,M,R

@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <title>Study {{ participant_id }}</title>
+    <style>
+        p {
+            font-family: Arial, Helvetica, sans-serif;
+            margin-top: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .centered { text-align: center; }
+        .bold { font-weight: bold; }
+        .small { font-size: small; }
+        .large { font-size: large; }
+        .larger { font-size: x-large; }
+        .yuuuge { font-size: 3rem; }
+
+        #pause-modal {
+            text-align: center;
+            position: fixed;
+            left: 25vw;
+            top: 25vh;
+            width: 50vw;
+            height: 50vh;
+            border: 1px solid black;
+            background-color: rgb(220, 220, 220);
+            z-index: 1000;
+        }
+        #pause-modal>p {
+            margin: 5em;
+        }
+
+        .bottom { position: fixed; bottom: 0; width: 100%; }
+        button { padding: 1rem 2rem; margin: 1rem; }
+
+        .highlighted {
+            font-size: xx-large;
+        }
+        .urgent {
+            background-color: #ff9999;
+            font-size: 5rem;
+        }
+
+        #click-me-first {
+            text-align: center;
+            position: fixed;
+            left: 25vw;
+            top: 25vh;
+            width: 50vw;
+            height: 50vh;
+            z-index: 1000;
+            border-radius: 0;
+            background-color: red;
+        }
+    </style>
+</head>
+<body>
+    <button id="click-me-first">Click me first! (play audio)</button>
+    <div id="pause-modal" style="visibility: hidden;">
+        <p>Please wait while the investigator prepares the next stage.</p>
+    </div>
+    <p id="training-msg" class="centered large" style="color: red; visibility: visible; margin: 0">Training</p>
+    <div style="margin-top: 5rem;">
+        <p class="centered yuuuge bold" id="task-board">Task will appear here:</p>
+        <p class="centered bold larger" id="target-board">Question targets will appear here</p>
+        <p class="centered large" id="question-board">Questions will appear here</p>
+    </div>
+    <div style="display: flex; justify-content: center;">
+        <button class="large" id="start-button" style="background-color: #aaee77;">Start</button>
+        <button class="large" id="done-button" style="background-color: #cc4411; visibility: hidden;">Done</button>
+    </div>
+    <p id="timer" class="centered large" style="color: black; visibility: visible; margin: 0"></p>
+
+    <p class="centered bottom" style="margin-bottom: 8rem;" id="progress-indicator"></p>
+    <p class="centered bottom small" style="margin-bottom: 6rem; color: #bbb; visibility: visible;" id="detail-indicator"></p>
+    <p class="centered bottom">Press the <strong>Start</strong> to start. State your answers verbally to the investigator, then press the <strong>Done</strong> button when you're satisfied with your answer for the question.</p>
+
+    <script>
+        // yeah this is bad form to render a Jinja value directly into JS but eh
+        const ParticipantId = {{ participant_id }};
+        const PlaceholderTask = 'Task will appear here:';
+        const PlaceholderQuestion = 'Questions will appear here';
+        const PlaceholderTarget = 'Question targets will appear here';
+        var questionText;
+        var totalTrials;
+        var trialsPerBlock;
+        var currentTrialData;
+        var previousTrialData;
+        var showPlaceholder = true;
+        var done = false;
+
+        // starting timer, in seconds
+        const NotificationTimer1 = 30;
+        const NotificationTimer2 = 60;
+        const NotificationAudioPlayInterval = 5; // seconds
+        // show timer cutoff when this many seconds remaining
+        const showTimerCutoff = 30;
+        var timer = 0;
+        var timerInterval = null;
+        var audio = null;
+
+        function getTrialData() {
+            return fetch('/api/trial').then(r => r.json())
+        }
+
+        // format a numeric seconds as MM:SS
+        function formatTime(seconds) {
+            let minutes = Math.floor(seconds / 60);
+            let dispSeconds = seconds % 60;
+            return minutes + ':' + new String(dispSeconds).padStart(2, '0');
+        }
+
+        // update the modal dialog that can't be closed until the investigator is ready.
+        // display this when the investigator needs to do stuff (e.g., change a dataset.)
+        // wait for the investigator to respond on the terminal (press enter)
+        function showPauseModal() {
+            const ModalElement = document.getElementById('pause-modal');
+            ModalElement.style.visibility = 'visible';
+            // alert('Please wait while the investigator prepares the next stage.');
+            fetch('/api/pause-modal')
+                .then(resp => ModalElement.style.visibility = 'hidden');
+        }
+
+        function updateDisplay() {
+            let task = currentTrialData['task'];
+            let question = questionText[currentTrialData['task']];
+            let target = showPlaceholder ? PlaceholderTarget : currentTrialData['target'];
+            target = target.replace(/-/g, '&nbsp;&nbsp;&nbsp;');
+            let targetText = target;
+            let placeholderText = 'a given ';
+            // if (task != 'compare' && task != 'advect') {
+            //     targetText = !showPlaceholder ? 'Line ' + target : target;
+            //     placeholderText += 'line';
+            // } else if (task == 'advect') {
+            //     targetText = !showPlaceholder ? 'Point ' + target : target;
+            //     placeholderText += 'point';
+            // }
+            targetText = !showPlaceholder ? 'Point ' + target : target;
+            placeholderText += 'point';
+
+            document.getElementById('task-board').innerHTML = task + ':';
+            document.getElementById('question-board').innerHTML = showPlaceholder ? question.replace(/__target__/g, placeholderText) : question.replace(/__target__/g, targetText);
+            document.getElementById('target-board').innerHTML = target;
+            let progressDisplay = `${((currentTrialData['trial_num'] - 1) % trialsPerBlock) + 1} / ${trialsPerBlock}`;
+            let detailDisplay = `${currentTrialData['dataset']} - ${currentTrialData['modality']}`;
+            document.getElementById('progress-indicator').innerHTML = progressDisplay;
+            document.getElementById('detail-indicator').innerHTML = detailDisplay;
+
+            document.getElementById('start-button').style.visibility = showPlaceholder ? 'visible' : 'hidden';
+            document.getElementById('done-button').style.visibility = !showPlaceholder ? 'visible' : 'hidden';
+            let isTraining = typeof(currentTrialData['rep']) === "string" && currentTrialData['rep'].indexOf('training') >= 0;
+            document.getElementById('training-msg').style.visibility = isTraining ? 'visible' : 'hidden';
+        }
+
+        async function init() {
+            audio = new Audio('static/beep.wav')
+            let totalTrialsJson = await fetch('/api/get-total-trials').then(r => r.json());
+            totalTrials = totalTrialsJson['numTrials'];
+            trialsPerBlock = totalTrialsJson['trialsPerBlock'];
+            questionText = await fetch('/api/get-question-text').then(r => r.json());
+
+            document.getElementById('click-me-first').addEventListener('click', () => {
+                audio.play();
+                document.getElementById('click-me-first').style.visibility = 'hidden';
+            });
+
+            let listener = async (evt) => {
+                if (!done) {
+                    // DONE pressed
+                    if (!showPlaceholder) {
+                        // display answers if training participant
+                        if (ParticipantId < 0) {
+                            alert(`Correct Answer: ${currentTrialData['answer']}`);
+                        }
+
+                        // get the next trial
+                        await fetch('/api/next-trial', {method: 'POST'});
+
+                        // end current trial - if next trial doesn't exist, end study
+                        await fetch('/api/end-trial', {method: 'POST'}).then(r => r.text())
+                            .then(t => {
+                                if (t.indexOf("END OF TRIALS") >= 0) {
+                                    done = true;
+                                }
+                            });
+
+                        previousTrialData = currentTrialData;
+                        currentTrialData = await getTrialData();
+
+                        // cancel timer
+                        timer = 0;
+                        clearInterval(timerInterval);
+                        let timerDom = document.getElementById('timer');
+                        timerDom.innerHTML = '';
+
+                        // ask for confidence if at the end of a block
+                        if (previousTrialData['task'] != currentTrialData['task']) {
+                            // await fetch('/api/start-trial', {method: 'POST'});
+                            // await fetch('/api/end-trial', {method: 'POST'});
+                            // await fetch('/api/next-trial', {method: 'POST'});
+                            // previousTrialData = currentTrialData;
+                            // currentTrialData = await getTrialData();
+                            alert(`Please report your confidence for\n${previousTrialData['task'].toUpperCase()} task with ${previousTrialData['modality'].toUpperCase()} mode (1-5, 5 is most confident)`)
+                        }
+
+                        showPlaceholder = true;
+                        if (currentTrialData && previousTrialData &&
+                                (currentTrialData['dataset'] != previousTrialData['dataset'] ||
+                                currentTrialData['modality'] != previousTrialData['modality'])) {
+                            // alert('Please wait while the investigator prepares the next stage.');
+                            showPauseModal();
+                        }
+                    // START pressed
+                    } else {
+                        // start current trial
+                        showPlaceholder = false;
+                        await fetch('/api/start-trial', {method: 'POST'});
+
+                        // handle timer
+                        timer = 0;
+                        let timerDom = document.getElementById('timer');
+                        timerDom.classList.remove('highlighted');
+                        timerDom.classList.remove('urgent');
+                        timerInterval = setInterval(() => {
+                            timer += 1;
+                            timerDom.innerHTML = formatTime(timer);
+
+                            if (timer == NotificationTimer1) {
+                                audio.play();
+                                timerDom.classList.add('highlighted');
+                            }
+                            if (timer >= NotificationTimer2) {
+                                if (timer % NotificationAudioPlayInterval == 0) {
+                                    audio.play();
+                                    timerDom.classList.add('urgent');
+                                }
+                            }
+                            // if (timer >= TimerMax) {
+                            //     alert('Ran out of time, please press "ok" to continue the next trial');
+                            //     clearInterval(timerInterval);
+                            //     document.getElementById('done-button').click();
+                            // }
+                        }, 1000);
+                    }
+                } else if (evt.key == 'r') {
+                    let reset = confirm(`Reset to start of participant ${currentTrialData['participant_id']}?`);
+                    if (reset) {
+                        await fetch('/api/restart', {method: 'POST'});
+                        currentTrialData = await getTrialData();
+                        showPlaceholder = true;
+                    }
+                }
+                updateDisplay();
+            };
+
+            // document.addEventListener('keypress', listener);
+            document.getElementById('start-button').addEventListener('click', listener);
+            document.getElementById('done-button').addEventListener('click', listener);
+
+            currentTrialData = await getTrialData();
+            updateDisplay();
+        }
+        window.onload = init;
+    </script>
+</body>
+</html>
