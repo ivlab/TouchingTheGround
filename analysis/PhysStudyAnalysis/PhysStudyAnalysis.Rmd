@@ -10,9 +10,6 @@ This R notebook runs through the steps to complete the data analysis for the
 study contained in the paper "Touching the Ground: Evaluating the Effectiveness
 of Data Physicalizations for Spatial Data Analysis Tasks".
 
-## Table of Contents
-
-
 
 ## Imports and References
 ```{r}
@@ -46,6 +43,7 @@ Effect size:
 CI for difference between means
 
 - https://www.statology.org/confidence-interval-difference-between-means/
+
 
 
 ## Define Helper Functions
@@ -192,6 +190,21 @@ summaryWithin <- function(data, measure.var, within.vars, between.vars, subject.
 
   return(s)
 }
+```
+
+
+## Define Constants
+
+### TOST Constants
+The equivalence bound $\delta = 0.5$ is determined from the *medium* effect size
+-- the most conservative approach. Pilot tests suggest this is reasonable.
+
+```{r}
+# setup for TOST
+eq.bounds = 0.5
+var.equal = TRUE
+conf.interval = 0.95
+alpha = 1.0 - conf.interval
 ```
 
 ## Load Data Files
@@ -393,6 +406,7 @@ kable(summary.error[c('Task', 'Modality', 'mean.360', 'ci.ca.low.360', 'ci.ca.hi
 
 ### Confidence
 
+
 Descriptive statistics for confidence, measured on a 1-5 Likert-like scale where
 1 is least confident and 5 is most confident.
 
@@ -409,6 +423,13 @@ summary.confidence = summaryWithin(
 summary.confidence$ci.ca.low = summary.confidence$mean - summary.confidence$ci.ca
 summary.confidence$ci.ca.high = summary.confidence$mean + summary.confidence$ci.ca
 kable(summary.confidence[c('Task', 'Modality', 'mean', 'ci.ca.low', 'ci.ca.high')], label='Confidence')
+```
+
+
+## Run everything above here for setup...
+
+```{r}
+# placeholder  -just run everything above this chunk to set up
 ```
 
 
@@ -473,18 +494,6 @@ runTOST <- function(data.frame, eq.column, tost.function) {
 }
 ```
 
-
-### TOST Setup
-The equivalence bound $\delta = 0.5$ is determined from the *medium* effect size
--- the most conservative approach. Pilot tests suggest this is reasonable.
-
-```{r}
-# setup for TOST
-eq.bounds = 0.5
-var.equal = TRUE
-conf.interval = 0.95
-alpha = 1.0 - conf.interval
-```
 
 ### Run the TOSTs
 
@@ -559,19 +568,29 @@ This section contains all the code to generate the results figures in the paper.
 
 ### Raw Means and CA-CIs
 
+Define a common theme for all plots.
+
+```{r}
+plot.font.size = 14
+theme.raw.common = theme(
+    legend.position = 'none',
+    text = element_text(size = plot.font.size),
+)
+```
+
 First, create the time plot.
 
 ```{r}
 time.plot = ggplot(summary.time, aes(x=Task, y=mean, fill=Modality)) +
   theme_bw() +
-  theme(aspect.ratio = 1.5, legend.position = 'none') +
+  theme.raw.common +
   scale_fill_brewer(type="qual", palette="Paired") +
   ylab('Time (s)') +
   geom_bar(position=position_dodge(.9), stat="identity") +
   geom_errorbar(color="black", position=position_dodge(0.9), width=0.25, aes(ymin=mean-ci.ca, ymax=mean+ci.ca)) +
   scale_y_continuous(breaks=c(0, 10, 20, 30, 40, 50, 60))
 
-plot.title = textGrob("Time", gp=gpar(fontsize=14, fontface='bold'))
+plot.title = textGrob("Time", gp=gpar(fontsize=plot.font.size, fontface='bold'))
 time.plot.final = grid.arrange(arrangeGrob(time.plot, top=plot.title))
 ```
 
@@ -582,8 +601,8 @@ The error plot is a bit more complicated since each tasks' error has different u
 yaxis.advect.values = c(0/360, 15/360, 30/360, 45/360, 60/360)
 advect.error.plot = ggplot(summary.error[summary.error$Task == 'advect',], aes(x=Task, y=mean, fill=Modality)) +
   theme_bw() +
-#   theme(legend.position='none', aspect.ratio = 4) +
-  theme(legend.position='none') +
+  theme.raw.common +
+  theme(aspect.ratio = 5.5) +
   scale_fill_brewer(type="qual", palette="Paired") +
   scale_y_continuous('Mean error (degrees)', limits=c(0, 60/360), breaks=yaxis.advect.values, labels = function(i) paste0(round(360 * i), "°")) +
   xlab(NULL) +
@@ -603,9 +622,10 @@ advect.error.plot.icons = insert_yaxis_grob(advect.error.plot, pimage, position 
 ### Range Error ####
 range.error.plot = ggplot(summary.error[summary.error$Task == 'range',], aes(x=Task, y=mean, fill=Modality)) +
   theme_bw() +
-  theme(legend.position='none') +
+  theme.raw.common +
+  theme(aspect.ratio = 6) +
   scale_fill_brewer(type="qual", palette="Paired") +
-  scale_y_continuous('Mean error (% difference from correct range)', limits=c(0, 0.15), labels = function(i) paste0(round(100 * i), "%")) +
+  scale_y_continuous('Mean error (%)', limits=c(0, 0.15), labels = function(i) paste0(round(100 * i), "%")) +
   xlab(NULL) +
   geom_bar(position=position_dodge(.9), stat="identity") +
   geom_errorbar(position=position_dodge(.9), width=.25, aes(ymin=mean-ci.ca, ymax=mean+ci.ca))
@@ -616,11 +636,13 @@ range.error.plot = ggplot(summary.error[summary.error$Task == 'range',], aes(x=T
 # not satisfy compound symmetry or sphericity assumptions.
 compare.error.plot = ggplot(df.error.compare.summary, aes(x='compare*', y=mean, fill=Modality)) +
   theme_bw() +
-  theme(legend.position='none', axis.text.x=element_blank()) +
-  theme(axis.title.x = element_text(size=10, color = '#555555')) +
-  xlab('compare*') +
+  theme.raw.common +
+  theme(aspect.ratio = 6) +
+  theme(axis.title.x = element_blank()) +
+#   theme(axis.title.x = element_text(size=plot.font.size, color = '#555555')) +
+#   xlab('compare*') +
   # ylim(0, 0.3) +
-  scale_y_continuous('% Responses Incorrect', limits=c(0, 0.3), labels = function(i) paste0(round(100 * i), "%")) +
+  scale_y_continuous('% Incorrect', limits=c(0, 0.3), labels = function(i) paste0(round(100 * i), "%")) +
   scale_fill_brewer(type="qual", palette="Paired") +
   geom_bar(position=position_dodge(.9), stat="identity") +
   geom_errorbar(position=position_dodge(.9), width=.25, aes(ymin=mean-ci.basic, ymax=mean+ci.basic))
@@ -633,25 +655,25 @@ error.plot = plot_grid(
   range.error.plot,
   ncol = 3,
   rel_widths = c(1.1, 1, 1)
-) + theme(aspect.ratio = 0.90)
-x.label = textGrob("Task")
-plot.title = textGrob("Error", gp=gpar(fontsize=14, fontface='bold'))
+) + theme(aspect.ratio = 0.90, plot.margin = unit(c(0, 1, 0, 1), units = 'cm'))
+x.label = textGrob("Task", gp=gpar(fontsize=plot.font.size))
+plot.title = textGrob("Error", gp=gpar(fontsize=plot.font.size, fontface='bold'))
 error.plot.final = grid.arrange(arrangeGrob(error.plot, bottom=x.label, top=plot.title))
 ```
 
-Make the confidence plot:
+ke the confidence plot:
 
 ```{r}
 conf.plot = ggplot(summary.confidence, aes(x=Task, y=mean, fill=Modality)) +
   theme_bw() +
-  theme(legend.position='none', aspect.ratio = 1.5) +
+  theme.raw.common +
   ylab('Mean Confidence') +
   ylim(0, 5) +
   scale_fill_brewer(type="qual", palette="Paired") +
   geom_bar(position=position_dodge(.9), stat="identity") +
   geom_errorbar(position=position_dodge(.9), width=.25, aes(ymin=mean-ci.basic, ymax=mean+ci.basic))
 
-plot.title = textGrob("Confidence", gp=gpar(fontsize=14, fontface='bold'))
+plot.title = textGrob("Confidence", gp=gpar(fontsize=plot.font.size, fontface='bold'))
 conf.plot.final = grid.arrange(arrangeGrob(conf.plot, top=plot.title))
 ```
 
@@ -664,12 +686,11 @@ p3 = conf.plot.final
 
 fig.raw.final = plot_grid(
     p1,
-    NULL,
     p2,
-    NULL,
     p3,
-    ncol = 5,
-    rel_widths = c(1, 0.1, 1.4, 0.1, 1)
+    ncol = 3,
+    labels = "AUTO",
+    rel_widths = c(0.9, 1.5, 0.8)
 ) + theme(aspect.ratio = 0.4)
 
 ggdraw(fig.raw.final)
@@ -687,7 +708,7 @@ ggsave('./analysis/figures/raw-results.pdf', plot = fig.raw.final)
 ### Differences and Hypotheses
 
 It's also useful to see pairwise differences for Physical vs other. First,
-calculate those differences and their descriptive statistics.
+calculate those differences and their descriptive statistics. Then plot them.
 
 #### Helper function for calculating differences
 
@@ -748,6 +769,17 @@ calculateDifference <- function(summary.for.diff, conf.interval) {
 
 #### Differences for time, errors, confidence
 
+Define a common theme
+
+```{r}
+theme.diff.common = theme(
+  legend.position = "none",
+  plot.title = element_text(hjust = 0.5),
+  aspect.ratio = 0.4,
+  text = element_text(size = 16)
+)
+```
+
 Time
 
 ```{r}
@@ -764,7 +796,7 @@ diff.time = calculateDifference(summary.time, 0.95)
 diff.time.plot = ggplot(diff.time,
        aes(x = mean, y = Task, fill = Comparison)) +
   theme_bw() +
-  theme(legend.position = "none", plot.title = element_text(hjust = 0.5), aspect.ratio = 0.4) +
+  theme.diff.common +
   scale_fill_brewer(type = 'qual') +
   xlab('Mean Time Difference (s)') +
   xlim(-22, 22) +
@@ -791,7 +823,7 @@ diff.error = calculateDifference(summary.error, 0.95)
 diff.error.plot = ggplot(diff.error,
        aes(x = mean, y = Task, fill = Comparison)) +
   theme_bw() +
-  theme(legend.position = "none", plot.title = element_text(hjust = 0.5), aspect.ratio = 0.4) +
+  theme.diff.common +
   scale_fill_brewer(type = 'qual') +
   xlab('Mean Error Difference (%)') +
   xlim(-0.25, 0.25) +
@@ -818,7 +850,7 @@ diff.conf = calculateDifference(summary.conf, 0.95)
 diff.conf.plot = ggplot(diff.conf,
        aes(x = mean, y = Task, fill = Comparison)) +
   theme_bw() +
-  theme(legend.position = "none", plot.title = element_text(hjust = 0.5), aspect.ratio = 0.4) +
+  theme.diff.common +
   scale_fill_brewer(type = 'qual') +
   xlab('Mean Confidence Difference (Likert)') +
   xlim(-2, 2) +
@@ -837,10 +869,13 @@ fig.diff.final = plot_grid(
     diff.error.plot,
     diff.conf.plot,
     nrow = 3
-    # rel_widths = c(1, 0.1, 1.4, 0.1, 1)
 ) + theme(aspect.ratio = 1.5)
 
 ggdraw(fig.diff.final)
 ```
 
-### Touch and Manipulation
+
+```{r}
+dir.create('./analysis/figures')
+ggsave('./analysis/figures/diff-results.pdf', plot = fig.diff.final)
+```

@@ -161,15 +161,6 @@ ParticipantID,Modality,Task,Confidence
 118,2d,advect,4
 118,2d,range,5
 118,2d,compare,4
-119,2d,range,4
-119,2d,compare,5
-119,2d,advect,4
-119,physical,compare,4
-119,physical,advect,3
-119,physical,range,3
-119,3d,advect,4
-119,3d,range,2
-119,3d,compare,3
 120,physical,range,3
 120,physical,compare,3
 120,physical,advect,2
