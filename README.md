@@ -7,21 +7,21 @@ This paper is based on Chapter 6 of Bridger Herman's dissertation.
 
 ## Supplemental Materials to be included in this repository
 
-[ ] README
-[ ] study-data
+[x] README
+[x] study-data
   [x] README
   [x] participants-anonymized.csv
   [x] trials-raw.csv
-  [ ] trials-processed.csv
+  [x] trials-raw_preprocessed.csv
   [x] confidence.csv
   [x] questionnaire-anonymized.csv
-[ ] datasets
-  [ ] README
-  [ ] 0-0
-  [ ] 0-1
-  [ ] 0-2
-  [ ] 2-0
-  [ ] sources
+[x] datasets
+  [x] README
+  [x] 0-0
+  [x] 0-1
+  [x] 0-2
+  [x] 2-0
+  [x] sources
 [x] analysis
   [ ] README
   [ ] r markdown of the final code / tables / figures

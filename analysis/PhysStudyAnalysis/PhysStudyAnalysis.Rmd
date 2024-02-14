@@ -1,0 +1,846 @@
+---
+title: "Physicalization Study Analysis"
+output:
+  html_document:
+    df_print: paged
+---
+
+
+This R notebook runs through the steps to complete the data analysis for the
+study contained in the paper "Touching the Ground: Evaluating the Effectiveness
+of Data Physicalizations for Spatial Data Analysis Tasks".
+
+## Table of Contents
+
+
+
+## Imports and References
+```{r}
+library(knitr)
+library(TOSTER)
+library(ggplot2)
+library(gsubfn)
+library(cowplot)
+library(grid)
+library(gridExtra)
+library(magick)
+
+options(scipen = 999) # disable sci notation
+```
+
+I am by no means a stats expert; the following references were helpful to me in putting together this document:
+
+TOSTER package:
+
+- https://cran.r-project.org/web/packages/TOSTER/vignettes/robustTOST.html
+- https://cran.r-project.org/web/packages/TOSTER/vignettes/IntroTOSTt.html
+
+Paper on equivalence testing for psych research:
+
+- https://journals.sagepub.com/doi/full/10.1177/2515245918770963
+
+Effect size:
+
+- https://www.statology.org/effect-size/
+
+CI for difference between means
+
+- https://www.statology.org/confidence-interval-difference-between-means/
+
+
+## Define Helper Functions
+
+A few helper functions are needed for analysis of the within-subjects data. Note
+the `summaryWithin` function calculates several confidence intervals, including
+the basic CI from the mean, Loftus-Masson (1994) CIs, Cousineau (2005) - Morey
+(2008) CIs, and Cousineau (2019) correlation-adjusted CIs (which are used in the
+paper).
+
+```{r}
+summaryWithin <- function(data, measure.var, within.vars, between.vars, subject.var, conf.interval) {
+  library(plyr)
+  library(reshape2)
+  s = ddply(
+    .data = data,
+    .variables = c(within.vars, between.vars),
+    .fun = function(data, col) {
+      c(
+        n = length(data[[col]]),
+        mean = mean(data[[col]]),
+        sd = sd(data[[col]])
+      )
+    },
+    measure.var
+  )
+  # Calculate standard error
+  s$se = s$sd / sqrt(s$n)
+  
+  # following based on Cousineau 2019
+  # all should be difference-adjusted (length increased by sqrt(2))
+  
+  # calculate confidence interval from coverage factor (e.g., 0.975 for a 95% CI)
+  t.lookup = conf.interval / 2 + 0.5
+  
+  conditions = unique(s[within.vars])
+  num.within.vars = length(conditions)
+  num.conditions = nrow(conditions)
+  subjects = unique(data[subject.var])
+  num.subjects = nrow(subjects)
+  
+  # calculate basic error bars
+  s$ci.basic = s$se * qt(t.lookup, s$n - 1)
+  
+  # calculate correlation-adjusted CI (Cousineau 2019)
+  # use correlation matrix from original data (exclude first column)
+  # this method is ONLY valid when data satisfy the compound symmetry assumption
+  # (i.e., all data to be measured are homoscedastic / homogeneous variances)
+  # AND data are spherical
+  #
+  # can verify these assumptions with:
+  # library(superb)
+  # WinerCompoundSymmetryTest(...) # compound symmetry
+  # MauchlySphericityTest(...) # sphericity
+  
+  f = formula(paste(paste(c(subject.var, between.vars), collapse=' + '), '~', paste(within.vars, collapse=' + '), collapse=' '))
+  data.wide = dcast(data, f, value.var = paste(measure.var), fun.aggregate=mean)
+  corr.matrix = cor(data.wide[,-1:-length(c(subject.var, between.vars))])
+  corr.mean = mean(corr.matrix[upper.tri(corr.matrix)])
+  s$ci.ca = (s$sd / sqrt(s$n)) * sqrt(1 - corr.mean) * qt(t.lookup, s$n - 1)
+  
+  
+  
+  # calculate Loftus-Masson (1994) and Cousineau (2005) - Morey (2008) CI
+
+  # SSsxc from Loftus and Masson 1994 (via Cousineau 2019)
+  sum.square.sxc = 0
+  
+  # define the CI for Cousineau and Morey
+  s$ci.cm = 0
+  
+  grand.mean = mean(s$mean)
+  for (i in 1:num.conditions) {
+    # calculate subset of data that applies to condition `i`
+    condition.row = sapply(conditions, '[', i)
+    condition.subset = NULL
+    # assume that we have 1-3 conditions...
+    # there's probably a better/more generic way to handle multiple columns in R
+    # But I don't know it
+    if (length(conditions) == 1) {
+      condition.subset = data[data[within.vars[1]] == as.character(condition.row[within.vars[1]]),]
+    } else if (length(conditions == 2)) {
+      condition.subset = data[data[within.vars[1]] == as.character(condition.row[within.vars[1]]) & data[within.vars[2]] == as.character(condition.row[within.vars[2]]),]
+    } else if (length(conditions == 3)) {
+      condition.subset = data[data[within.vars[1]] == as.character(condition.row[within.vars[1]]) & data[within.vars[2]] == as.character(condition.row[within.vars[2]]) & data[within.vars[3]] == as.character(condition.row[within.vars[3]]),]
+    }
+    condition.subset = as.data.frame(condition.subset)
+    condition.mean = sapply(condition.subset[measure.var], mean)
+    
+    # Sz from Cousineau (2005) + Morey (2008) (via Cousineau 2019)
+    # calculated over each subject
+    # Yijs is an array of Yij calculated over each subject
+    Yijs = c()
+    for (j in 1:num.subjects) {
+      subj.mean = sapply(data[data[subject.var] == subjects[[subject.var]][j],][measure.var], mean)
+      mean.ij = sapply(condition.subset[condition.subset[subject.var] == subjects[[subject.var]][j],][measure.var], mean)
+      
+      # LM
+      sum.square.sxc = sum.square.sxc + (mean.ij - subj.mean - condition.mean + grand.mean)^2
+  
+      # CM - Calculate first step (values adjusted within each subject's own variability
+      # ("subject-centering transformation" via Cousineau 2019))
+      Yij = mean.ij - subj.mean + grand.mean
+      Yijs = append(Yijs, Yij)
+    }
+    
+    # (CM) calculate Y (subject-centered) mean over all subj
+    Yj.mean = mean(Yijs)
+    Zijs = c()
+    for (j in 1:num.subjects) {
+      Yij = Yijs[j]
+      Zij = sqrt(num.conditions / (num.conditions - 1)) * (Yij - Yj.mean) + Yj.mean
+      Zijs = append(Zijs, Zij)
+    }
+    
+    # final CI from Cousineau Morey
+    Szi = sd(Zijs)
+    ci.cm = (Szi / sqrt(num.subjects)) * qt(t.lookup, num.subjects - 1)
+    
+    # condition.row was created from `conditions`, so the integer indices of the
+    # factors are incorrect.
+    condition.row.str = as.character(condition.row)
+    # assume that we have 1-3 conditions...
+    # there's probably a better/more generic way to handle multiple columns in R
+    # But I don't know it
+    if (length(conditions) == 1) {
+      s[s[within.vars[1]] == condition.row.str[1],]$ci.cm = ci.cm
+    } else if (length(conditions == 2)) {
+      s[s[within.vars[1]] == condition.row.str[1] & s[within.vars[2]] == condition.row.str[2],]$ci.cm = ci.cm
+    } else if (length(conditions == 3)) {
+      s[s[within.vars[1]] == condition.row.str[1] & s[within.vars[2]] == condition.row.str[2] & s[within.vars[3]] == condition.row.str[3],]$ci.cm = ci.cm
+    }
+  }
+
+  # Slm from Loftus and Masson 1994 (via Cousineau 2019)
+  slm = sqrt(sum.square.sxc / ((num.conditions - 1) * (num.subjects - 1)))
+  s$ci.lm = slm / sqrt(num.subjects) * qt(t.lookup, (num.conditions - 1) * (num.subjects - 1))
+
+  # apply difference-adjustment (Cousineau 2019)
+  s$ci.basic.c = s$ci.basic * sqrt(2)
+  s$ci.ca.c = s$ci.ca * sqrt(2)
+  s$ci.lm.c = s$ci.lm * sqrt(2)
+  s$ci.cm.c = s$ci.cm * sqrt(2)
+
+  return(s)
+}
+```
+
+## Load Data Files
+
+### Load trial, participant, and questionnaire
+
+Define the data folder. `../../study-data` when building/knitting to HTML.
+```{r}
+# data.dir = '../../study-data'
+data.dir = './study-data'
+```
+
+```{r}
+df.participants.raw = read.csv(paste(data.dir, 'participants-anonymized.csv', sep='/'))
+df.conf = read.csv(paste(data.dir, 'confidence.csv', sep='/'))
+df.qual.raw = read.csv(paste(data.dir, 'questionnaire-anonymized.csv', sep='/'))
+
+# note - run the preprocess_responses.py Python script first to obtain this file
+df = read.csv(paste(data.dir, 'trials-raw_preprocessed.csv', sep='/'))
+```
+
+
+### Process data
+
+Some of the columns need to be normalized and preprocessed so they're easier to work with.
+
+#### Participants data table
+```{r}
+# filter by columns we care about
+df.participants = data.frame(ParticipantID=df.participants.raw$ParticipantID)
+
+df.participants$VR.Usage = df.participants.raw$How.many.times.have.you.used.virtual.reality.before.today..e.g...Oculus.Quest.or.HTC.VIVE..
+df.participants$Topo.Usage = df.participants.raw$How.many.times.have.you.used.topographic.maps.before.today..e.g...hiking.maps.that.show.elevation.with.contour.lines..
+df.participants$BiologicalSex = df.participants.raw$BiologicalSex
+df.participants$VideoGames = df.participants.raw$How.many.hours.on.average.do.you.play.video..computer..or.mobile.games.
+
+df.participants = df.participants[df.participants$ParticipantID > 100 & df.participants$ParticipantID < 200 & !is.na(df.participants$ParticipantID),]
+```
+
+#### Main trials data table
+```{r}
+# add columns to main data frame based on participant data
+df$VR.Usage = "Never"
+df$Topo.Usage = "Never"
+df$Sex = ""
+df$VideoGames = "I don't play video, computer, or mobile games"
+
+for (p in df.participants$ParticipantID) {
+  df[df$ParticipantID == p,]$VR.Usage = df.participants[df.participants$ParticipantID == p,]$VR.Usage
+  df[df$ParticipantID == p,]$Topo.Usage = df.participants[df.participants$ParticipantID == p,]$Topo.Usage
+  df[df$ParticipantID == p,]$Sex = df.participants[df.participants$ParticipantID == p,]$BiologicalSex
+  df[df$ParticipantID == p,]$VideoGames = df.participants[df.participants$ParticipantID == p,]$VideoGames
+}
+
+#df$ParticipantID = factor(df$ParticipantID) # convert to factor instead of number
+df$Modality = gsub("2d", "2D", df$Modality)
+df$Modality = gsub("3d", "VR", df$Modality)
+df$Modality = gsub("physical", "Physical", df$Modality)
+df$Modality = factor(df$Modality, levels=c("2D", "VR", "Physical")) # convert to factor instead of string
+df$Task = factor(df$Task) # convert to factor instead of string
+df$Dataset = factor(df$Dataset) # convert to factor instead of string
+df$ModalityOrder = factor(df$ModalityOrder) # convert to factor instead of string
+df$TaskOrder = factor(df$TaskOrder) # convert to factor instead of string
+df$Repetition = factor(df$Repetition)
+df$Use.body.reference.frame = factor(df$Use.body.reference.frame, levels = c('', 'One Finger', 'Multiple Fingers'), labels = c('None', 'One Finger', 'Multiple Fingers'))
+df$Pick.up.phys = factor(df$Pick.up.phys, levels = c('', 'Rotate', 'Pick Up'), labels = c('None', 'Rotate', 'Pick Up'))
+
+# ensure order is correct for demographic data
+df$VR.Usage = factor(df$VR.Usage, levels=c(
+  "Never",
+  "1 to 5 times",
+  "6 to 20 times",
+  "More than 20 times"
+))
+df$Topo.Usage = factor(df$Topo.Usage, levels=c(
+  "Never",
+  "1 to 5 times",
+  "6 to 20 times",
+  "More than 20 times"
+))
+df$VideoGames = factor(df$VideoGames, levels=c(
+  "I don't play video, computer, or mobile games",
+  "Less than 30min a day",
+  "30min to 2hr a day",
+  "2hr to 6hr a day",
+  "More than 6hr a day"
+))
+
+# coerce zero errors to positive number
+df$Error[df$Error == 0] <- 0.0001
+
+# compute logTime and logErrors b/c most time/errors are logNormal
+df$logTime = log(df$TimeOnTask)
+df$logError = log(df$Error)
+
+# option to have separate data frames by time and errors, for now they're the same
+df.time = df
+df.error = df
+
+
+# verify balanced latin squares
+for (modality in unique(df$Modality)) {
+  for (task in unique(df$Task)) {
+    print(paste(modality, task, nrow(df[df$Task == task & df$Modality == modality,])))
+  }
+}
+
+for (dataset in unique(df$Dataset)) {
+  print(paste(dataset, nrow(df[df$Dataset == dataset,])))
+}
+```
+
+#### Confidence data table
+```{r}
+df.conf$Modality = gsub("2d", "2D", df.conf$Modality)
+df.conf$Modality = gsub("3d", "VR", df.conf$Modality)
+df.conf$Modality = gsub("physical", "Physical", df.conf$Modality)
+df.conf$Modality = factor(df.conf$Modality, levels=c('2D', 'VR', 'Physical')) # convert to factor instead of string
+df.conf$Task = factor(df.conf$Task) # convert to factor instead of string
+```
+
+#### Questionnaire data table
+```{r}
+# normalize column names
+df.qual = data.frame(ParticipantID=df.qual.raw$Participant.ID)
+
+df.qual$Modality = df.qual.raw$Modality
+df.qual$MentalDemand = df.qual.raw$How.mentally.demanding.was.the.task...e.g...thinking..deciding..remembering..searching..etc...Give.a.rating.between.1.and.10..where.1.is.very.low.and.10.is.very.high.
+df.qual$PhysicalDemand = df.qual.raw$How.physically.demanding.was.the.task...e.g...pushing..pulling..turning..controlling..pressing..etc...Give.a.rating.between.1.and.10..where.1.is.very.low.and.10.is.very.high.
+df.qual$Success = df.qual.raw$How.successful.do.you.think.you.were.in.accomplishing.the.goals.of.the.task..How.satisfied.were.you.with.your.performance.in.accomplishing.these.goals..Give.a.rating.between.1.and.10..where.1.is.very.poor.and.10.is.very.good.
+df.qual$HardWork = df.qual.raw$How.hard.did.you.have.to.work..mentally.and.physically..to.accomplish.your.level.of.performance..Give.a.rating.between.1.and.10..where.1.is.very.low.and.10.is.very.high.
+df.qual$Insecure = df.qual.raw$How.insecure..discouraged..irritated..stressed.and.annoyed.versus.secure.gratified..content..relaxed.and.complacent.did.you.feel.during.the.task..Give.a.rating.between.1.and.10..where.1.is.very.low.and.10.is.very.high.
+
+df.qual$Modality = factor(df.qual$Modality, levels=c('2D', 'VR', 'Physical')) # convert to factor instead of string
+```
+
+
+## Create descriptive statistics data tables
+
+### Time
+
+Descriptive statistics for the Time measures (to be used in the paper).
+
+```{r}
+summary.time = summaryWithin(
+  data=df.time,
+  measure.var="TimeOnTask",
+  within.vars=c("Task", "Modality"),
+  between.vars=c(),
+  subject.var='ParticipantID',
+  conf.interval=0.95
+)
+summary.time$ci.ca.low = summary.time$mean - summary.time$ci.ca
+summary.time$ci.ca.high = summary.time$mean + summary.time$ci.ca
+kable(summary.time[c('Task', 'Modality', 'mean', 'ci.ca.low', 'ci.ca.high')])
+```
+
+
+### Error
+
+Descriptive statistics for the Error measures (to be used in the paper). Compare
+error needs to be handled separately because it's binomial data.
+
+```{r}
+df.error.compare = df.error[df.error$Task == 'compare',]
+df.error.compare.summary = summaryWithin(
+  data = df.error.compare,
+  measure.var = 'Error',
+  within.vars = c('Modality'),
+  between.vars = c(),
+  subject.var = 'ParticipantID',
+  conf.interval = 0.95
+)
+df.error.compare.summary$ci.basic.low = df.error.compare.summary$mean - df.error.compare.summary$ci.basic
+df.error.compare.summary$ci.basic.high = df.error.compare.summary$mean + df.error.compare.summary$ci.basic
+kable(df.error.compare.summary[c('Modality', 'mean', 'ci.basic.low', 'ci.basic.high')], label='Error for the compare task (0-1 percentage)')
+```
+
+
+```{r}
+summary.error = summaryWithin(
+  data = df.error[df.error$Task == 'advect' | df.error$Task == 'range',],
+  measure.var = "Error",
+  within.vars = c("Task", "Modality"),
+  subject.var = "ParticipantID",
+  between.vars = c(),
+  conf.interval=0.95
+)
+summary.error$mean.360 = summary.error$mean * 360
+summary.error$ci.ca.low = summary.error$mean - summary.error$ci.ca
+summary.error$ci.ca.high = summary.error$mean + summary.error$ci.ca
+summary.error$ci.ca.low.360 = summary.error$ci.ca.low * 360
+summary.error$ci.ca.high.360 = summary.error$ci.ca.high * 360
+
+kable(summary.error[c('Task', 'Modality', 'mean', 'ci.ca.low', 'ci.ca.high')], label = 'Normalized error (0-1)')
+kable(summary.error[c('Task', 'Modality', 'mean.360', 'ci.ca.low.360', 'ci.ca.high.360')], label = 'Error as degrees (0-360)')
+```
+
+
+### Confidence
+
+Descriptive statistics for confidence, measured on a 1-5 Likert-like scale where
+1 is least confident and 5 is most confident.
+
+```{r}
+summary.confidence = summaryWithin(
+  data = df.conf,
+  measure.var = "Confidence",
+  within.vars = c("Task", "Modality"),
+  subject.var = "ParticipantID",
+  between.vars = c(),
+  conf.interval=0.95
+)
+
+summary.confidence$ci.ca.low = summary.confidence$mean - summary.confidence$ci.ca
+summary.confidence$ci.ca.high = summary.confidence$mean + summary.confidence$ci.ca
+kable(summary.confidence[c('Task', 'Modality', 'mean', 'ci.ca.low', 'ci.ca.high')], label='Confidence')
+```
+
+
+## Main analysis: TOST non-inferiority tests
+
+### Helper function to run the TOST across the results
+```{r}
+# eq.column - column to test TOST across
+# tost.function - TOST function to use (usually TOSTER::t_TOST or TOSTER::wilcox_TOST)
+runTOST <- function(data.frame, eq.column, tost.function) {
+    t.tost.results = data.frame(
+    Task = character(),
+    Comparison = character(),
+    tost.df = numeric(),
+    tost.upper.t = numeric(),
+    tost.upper.p = numeric(),
+    tost.lower.t = numeric(),
+    tost.lower.p = numeric(),
+    hedges.g = numeric(),
+    hedges.g.lower = numeric(),
+    hedges.g.upper = numeric(),
+    Notes = character()
+    )
+    for (task in levels(data.frame$Task)) {
+        done <- c()
+        for (modality1 in levels(data.frame$Modality)) {
+            for (modality2 in levels(data.frame$Modality)) {
+                if (modality1 == modality2 || modality2 %in% done) {
+                    next
+                }
+
+                t.tost.result <- tost.function(
+                    data.frame[data.frame$Task == task & data.frame$Modality == modality2, eq.column],
+                    data.frame[data.frame$Task == task & data.frame$Modality == modality1, eq.column],
+                    paired = TRUE,
+                    var.equal = TRUE,
+                    eqb = eq.bounds,
+                    alpha = alpha,
+                    rm_correction = TRUE
+                )
+
+                new.row <- data.frame(
+                    Task = task,
+                    Comparison = paste(modality2, modality1, sep = "-"),
+                    Notes = as.character(substitute(tost.function))[3], # get function name used for TOST
+                    tost.df = t.tost.result$TOST["t-test", "df"],
+                    tost.upper.t = t.tost.result$TOST["TOST Upper", "t"],
+                    tost.upper.p = t.tost.result$TOST["TOST Upper", "p.value"],
+                    tost.lower.t = t.tost.result$TOST["TOST Lower", "t"],
+                    tost.lower.p = t.tost.result$TOST["TOST Lower", "p.value"],
+                    hedges.g = t.tost.result$effsize["Hedges's g(rm)", "estimate"],
+                    hedges.g.lower = t.tost.result$effsize["Hedges's g(rm)", "lower.ci"],
+                    hedges.g.upper = t.tost.result$effsize["Hedges's g(rm)", "upper.ci"]
+                )
+
+                t.tost.results <- rbind(t.tost.results, new.row)
+            }
+            done[length(done) + 1] <- modality1
+        }
+    }
+    return(t.tost.results)
+}
+```
+
+
+### TOST Setup
+The equivalence bound $\delta = 0.5$ is determined from the *medium* effect size
+-- the most conservative approach. Pilot tests suggest this is reasonable.
+
+```{r}
+# setup for TOST
+eq.bounds = 0.5
+var.equal = TRUE
+conf.interval = 0.95
+alpha = 1.0 - conf.interval
+```
+
+### Run the TOSTs
+
+Handle the TOSTs and display the results...
+
+```{r}
+# time (time is logNormal distributed)
+time.tost.results = runTOST(df, 'logTime', TOSTER::t_TOST)
+
+# error (error is logNormal distributed, except for Compare error)
+error.tost.results = runTOST(df, 'logError', TOSTER::t_TOST)
+
+# confidence
+conf.tost.results = runTOST(df.conf, 'Confidence', TOSTER::t_TOST)
+```
+
+
+The Compare error needs to be handled separately, though, because it's not normal or log-normal distributed.
+```{r}
+eq.column = 'logError'
+# Correct for compare error (use wilcox because Compare  Error not normally dist)
+done = c()
+for (modality1 in levels(df$Modality)) {
+  for (modality2 in levels(df$Modality)) {
+    if (modality1 == modality2 || modality2 %in% done) {
+      next
+    }
+    
+    t.tost.result = TOSTER::wilcox_TOST(
+      df[df$Task == 'compare' & df$Modality == modality2, eq.column],
+      df[df$Task == 'compare' & df$Modality == modality1, eq.column],
+      paired = TRUE,
+      eqb = eq.bounds,
+      alpha = alpha
+    )
+    
+    comp = paste(modality2, modality1, sep = '-')
+    
+    error.tost.results[error.tost.results$Task == 'compare' & error.tost.results$Comparison == comp,] = data.frame(
+      Task = 'compare',
+      Comparison = comp,
+      Notes = as.character(substitute(TOSTER::wilcox_TOST))[3],
+      tost.df = error.tost.results[error.tost.results$Task == 'compare', 'tost.df'],
+      tost.upper.t = t.tost.result$TOST['TOST Upper', 'statistic'],
+      tost.upper.p = t.tost.result$TOST['TOST Upper', 'p.value'],
+      tost.lower.t = t.tost.result$TOST['TOST Lower', 'statistic'],
+      tost.lower.p = t.tost.result$TOST['TOST Lower', 'p.value'],
+      hedges.g = t.tost.result$effsize["Rank-Biserial Correlation", 'estimate'],
+      hedges.g.lower = t.tost.result$effsize["Rank-Biserial Correlation", 'lower.ci'],
+      hedges.g.upper = t.tost.result$effsize["Rank-Biserial Correlation", 'upper.ci']
+    )
+    
+  }
+  done[length(done) + 1] = modality1
+}
+```
+
+
+Display the TOST results:
+
+```{r}
+kable(time.tost.results, label = 'Time TOST')
+kable(error.tost.results, label = 'Error TOST')
+kable(conf.tost.results, label = 'Confidence TOST')
+```
+
+
+
+## Create Figures
+
+This section contains all the code to generate the results figures in the paper.
+
+### Raw Means and CA-CIs
+
+First, create the time plot.
+
+```{r}
+time.plot = ggplot(summary.time, aes(x=Task, y=mean, fill=Modality)) +
+  theme_bw() +
+  theme(aspect.ratio = 1.5, legend.position = 'none') +
+  scale_fill_brewer(type="qual", palette="Paired") +
+  ylab('Time (s)') +
+  geom_bar(position=position_dodge(.9), stat="identity") +
+  geom_errorbar(color="black", position=position_dodge(0.9), width=0.25, aes(ymin=mean-ci.ca, ymax=mean+ci.ca)) +
+  scale_y_continuous(breaks=c(0, 10, 20, 30, 40, 50, 60))
+
+plot.title = textGrob("Time", gp=gpar(fontsize=14, fontface='bold'))
+time.plot.final = grid.arrange(arrangeGrob(time.plot, top=plot.title))
+```
+
+The error plot is a bit more complicated since each tasks' error has different units.
+
+```{r}
+### Advect Error ####
+yaxis.advect.values = c(0/360, 15/360, 30/360, 45/360, 60/360)
+advect.error.plot = ggplot(summary.error[summary.error$Task == 'advect',], aes(x=Task, y=mean, fill=Modality)) +
+  theme_bw() +
+#   theme(legend.position='none', aspect.ratio = 4) +
+  theme(legend.position='none') +
+  scale_fill_brewer(type="qual", palette="Paired") +
+  scale_y_continuous('Mean error (degrees)', limits=c(0, 60/360), breaks=yaxis.advect.values, labels = function(i) paste0(round(360 * i), "°")) +
+  xlab(NULL) +
+  geom_bar(position=position_dodge(.9), stat="identity") +
+  geom_errorbar(position=position_dodge(.9), width=.25, aes(ymin=mean-ci.ca, ymax=mean+ci.ca))
+
+# draw image on plot: https://stackoverflow.com/a/54252115
+pimage <- axis_canvas(advect.error.plot, axis = 'y');
+for (v in 1:length(yaxis.advect.values)) {
+  pimage = pimage + draw_image(paste("./analysis/assets/advect-labels-", yaxis.advect.values[v] * 360, ".svg", sep = ""), y = -0.5 + yaxis.advect.values[v], scale = 0.75)
+}
+
+# insert the image strip into the plot
+advect.error.plot.icons = insert_yaxis_grob(advect.error.plot, pimage, position = "left", width=grid::unit(0.3, "null"))
+# ggdraw(advect.error.plot.icons)
+
+### Range Error ####
+range.error.plot = ggplot(summary.error[summary.error$Task == 'range',], aes(x=Task, y=mean, fill=Modality)) +
+  theme_bw() +
+  theme(legend.position='none') +
+  scale_fill_brewer(type="qual", palette="Paired") +
+  scale_y_continuous('Mean error (% difference from correct range)', limits=c(0, 0.15), labels = function(i) paste0(round(100 * i), "%")) +
+  xlab(NULL) +
+  geom_bar(position=position_dodge(.9), stat="identity") +
+  geom_errorbar(position=position_dodge(.9), width=.25, aes(ymin=mean-ci.ca, ymax=mean+ci.ca))
+# ggdraw(range.error.plot)
+
+### Compare Error ####
+# note that we use CI based on the standard error here (basic) since the data do
+# not satisfy compound symmetry or sphericity assumptions.
+compare.error.plot = ggplot(df.error.compare.summary, aes(x='compare*', y=mean, fill=Modality)) +
+  theme_bw() +
+  theme(legend.position='none', axis.text.x=element_blank()) +
+  theme(axis.title.x = element_text(size=10, color = '#555555')) +
+  xlab('compare*') +
+  # ylim(0, 0.3) +
+  scale_y_continuous('% Responses Incorrect', limits=c(0, 0.3), labels = function(i) paste0(round(100 * i), "%")) +
+  scale_fill_brewer(type="qual", palette="Paired") +
+  geom_bar(position=position_dodge(.9), stat="identity") +
+  geom_errorbar(position=position_dodge(.9), width=.25, aes(ymin=mean-ci.basic, ymax=mean+ci.basic))
+# ggdraw(compare.error.plot)
+
+### All Error ####
+error.plot = plot_grid(
+  advect.error.plot.icons,
+  compare.error.plot,
+  range.error.plot,
+  ncol = 3,
+  rel_widths = c(1.1, 1, 1)
+) + theme(aspect.ratio = 0.90)
+x.label = textGrob("Task")
+plot.title = textGrob("Error", gp=gpar(fontsize=14, fontface='bold'))
+error.plot.final = grid.arrange(arrangeGrob(error.plot, bottom=x.label, top=plot.title))
+```
+
+Make the confidence plot:
+
+```{r}
+conf.plot = ggplot(summary.confidence, aes(x=Task, y=mean, fill=Modality)) +
+  theme_bw() +
+  theme(legend.position='none', aspect.ratio = 1.5) +
+  ylab('Mean Confidence') +
+  ylim(0, 5) +
+  scale_fill_brewer(type="qual", palette="Paired") +
+  geom_bar(position=position_dodge(.9), stat="identity") +
+  geom_errorbar(position=position_dodge(.9), width=.25, aes(ymin=mean-ci.basic, ymax=mean+ci.basic))
+
+plot.title = textGrob("Confidence", gp=gpar(fontsize=14, fontface='bold'))
+conf.plot.final = grid.arrange(arrangeGrob(conf.plot, top=plot.title))
+```
+
+Lastly, put the plots all together:
+
+```{r}
+p1 = time.plot.final
+p2 = error.plot.final
+p3 = conf.plot.final
+
+fig.raw.final = plot_grid(
+    p1,
+    NULL,
+    p2,
+    NULL,
+    p3,
+    ncol = 5,
+    rel_widths = c(1, 0.1, 1.4, 0.1, 1)
+) + theme(aspect.ratio = 0.4)
+
+ggdraw(fig.raw.final)
+```
+
+Write it to file
+
+```{r}
+dir.create('./analysis/figures')
+ggsave('./analysis/figures/raw-results.pdf', plot = fig.raw.final)
+
+```
+
+
+### Differences and Hypotheses
+
+It's also useful to see pairwise differences for Physical vs other. First,
+calculate those differences and their descriptive statistics.
+
+#### Helper function for calculating differences
+
+```{r}
+calculateDifference <- function(summary.for.diff, conf.interval) {
+    diff <- data.frame(
+        Task = character(),
+        Comparison = character(),
+        mean = numeric(),
+        sd = numeric(),
+        ci.low = numeric(),
+        ci.high = numeric()
+    )
+
+    for (task in levels(summary.for.diff$Task)) {
+        done <- c()
+        for (modality1 in levels(summary.for.diff$Modality)) {
+            for (modality2 in levels(summary.for.diff$Modality)) {
+                if (modality1 == modality2 || modality2 %in% done) {
+                    next
+                }
+
+                st <- summary.for.diff[summary.for.diff$Task == task, ]
+                m2 <- st[st$Modality == modality1, ]
+                m1 <- st[st$Modality == modality2, ]
+
+                degrees.freedom <- m1$n + m2$n - 2
+                pooled.variance <- ((m1$n - 1) * m1$sd^2 + (m2$n - 1) * m2$sd^2) / (m1$n + m2$n - 2)
+                crit.t <- qt(conf.interval / 2 + 0.5, degrees.freedom)
+
+                ci <- crit.t * sqrt((pooled.variance / m1$n) + (pooled.variance / m2$n))
+                mean.diff <- m1$mean - m2$mean
+
+                new.row <- data.frame(
+                    Task = task,
+                    Comparison = paste(modality2, modality1, sep = "-"),
+                    mean = mean.diff,
+                    sd = sqrt(pooled.variance),
+                    ci.low = mean.diff - ci,
+                    ci.high = mean.diff + ci
+                )
+
+                diff <- rbind(diff, new.row)
+            }
+
+            done[length(done) + 1] <- modality1
+        }
+    }
+
+    # Only include comparisons with Physical
+    diff = diff[grepl('Physical', diff$Comparison, fixed = FALSE),]
+    diff$Task = factor(diff$Task, levels = c('range', 'compare', 'advect'))
+    diff$Comparison = factor(diff$Comparison)
+    return(diff)
+}
+```
+
+
+#### Differences for time, errors, confidence
+
+Time
+
+```{r}
+summary.time = summaryWithin(
+  data=df,
+  measure.var="TimeOnTask",
+  within.vars=c("Task", "Modality"),
+  between.vars=c(),
+  subject.var='ParticipantID',
+  conf.interval=0.95
+)
+
+diff.time = calculateDifference(summary.time, 0.95)
+diff.time.plot = ggplot(diff.time,
+       aes(x = mean, y = Task, fill = Comparison)) +
+  theme_bw() +
+  theme(legend.position = "none", plot.title = element_text(hjust = 0.5), aspect.ratio = 0.4) +
+  scale_fill_brewer(type = 'qual') +
+  xlab('Mean Time Difference (s)') +
+  xlim(-22, 22) +
+  ggtitle('Time') +
+  with(diff.time, geom_rect(xmin = -30, xmax = sd * eq.bounds, ymin = as.numeric(Task) - (as.numeric(Comparison) - 1) * 0.48, ymax = as.numeric(Task) + (as.numeric(Comparison) - 1) * 0.48, fill = "#dddddd7f")) +
+  geom_bar(position = position_dodge(0.9), stat = 'identity') +
+  geom_errorbar(position = position_dodge(0.9), width = 0.25, aes(xmin = ci.low, xmax = ci.high)) +
+  geom_vline(xintercept = 0)
+```
+
+
+Errors
+
+```{r}
+summary.error = summaryWithin(
+  data=df,
+  measure.var="Error",
+  within.vars=c("Task", "Modality"),
+  between.vars=c(),
+  subject.var='ParticipantID',
+  conf.interval=0.95
+)
+diff.error = calculateDifference(summary.error, 0.95)
+diff.error.plot = ggplot(diff.error,
+       aes(x = mean, y = Task, fill = Comparison)) +
+  theme_bw() +
+  theme(legend.position = "none", plot.title = element_text(hjust = 0.5), aspect.ratio = 0.4) +
+  scale_fill_brewer(type = 'qual') +
+  xlab('Mean Error Difference (%)') +
+  xlim(-0.25, 0.25) +
+  ggtitle('Error') +
+  with(diff.error, geom_rect(xmin = -30, xmax = sd * eq.bounds, ymin = as.numeric(Task) - (as.numeric(Comparison) - 1) * 0.48, ymax = as.numeric(Task) + (as.numeric(Comparison) - 1) * 0.48, fill = "#dddddd7f")) +
+  geom_bar(position = position_dodge(0.9), stat = 'identity') +
+  geom_errorbar(position = position_dodge(0.9), width = 0.25, aes(xmin = ci.low, xmax = ci.high)) +
+  geom_vline(xintercept = 0)
+```
+
+
+Confidence
+
+```{r}
+summary.conf = summaryWithin(
+  data=df.conf,
+  measure.var="Confidence",
+  within.vars=c("Task", "Modality"),
+  between.vars=c(),
+  subject.var='ParticipantID',
+  conf.interval=0.95
+)
+diff.conf = calculateDifference(summary.conf, 0.95)
+diff.conf.plot = ggplot(diff.conf,
+       aes(x = mean, y = Task, fill = Comparison)) +
+  theme_bw() +
+  theme(legend.position = "none", plot.title = element_text(hjust = 0.5), aspect.ratio = 0.4) +
+  scale_fill_brewer(type = 'qual') +
+  xlab('Mean Confidence Difference (Likert)') +
+  xlim(-2, 2) +
+  ggtitle('Confidence') +
+  with(diff.conf, geom_rect(xmax = 30, xmin = -sd * eq.bounds, ymin = as.numeric(Task) - (as.numeric(Comparison) - 1) * 0.48, ymax = as.numeric(Task) + (as.numeric(Comparison) - 1) * 0.48, fill = "#dddddd7f")) +
+  geom_bar(position = position_dodge(0.9), stat = 'identity') +
+  geom_errorbar(position = position_dodge(0.9), width = 0.25, aes(xmin = ci.low, xmax = ci.high)) +
+  geom_vline(xintercept = 0)
+```
+
+Put them together
+
+```{r}
+fig.diff.final = plot_grid(
+    diff.time.plot,
+    diff.error.plot,
+    diff.conf.plot,
+    nrow = 3
+    # rel_widths = c(1, 0.1, 1.4, 0.1, 1)
+) + theme(aspect.ratio = 1.5)
+
+ggdraw(fig.diff.final)
+```
+
+### Touch and Manipulation

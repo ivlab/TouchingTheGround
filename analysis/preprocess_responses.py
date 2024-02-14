@@ -96,7 +96,7 @@ def analyze_participant_data(df: pd.DataFrame):
 
     # anything that's in a circle, add a CircleDataRange column
     def circle_data_range_helper(dataset_name, target):
-        metadata_json = parse_study_answers.get_metadata_json(dataset_name)
+        metadata_json = parse_study_answers.get_metadata_json(dataset_name, DATASET_PATH)
         task_answer_fn = parse_study_answers.ANSWERS['range']
         minm, maxm = task_answer_fn(metadata_json, target)
         return float(maxm) - float(minm)

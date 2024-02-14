@@ -69,8 +69,8 @@ def advect_answer(metadata_json: dict, point: str):
         return None
 
 
-def get_metadata_json(dataset_name: str):
-    metadata_path = DATASET_PATH.joinpath(dataset_name, METADATA_FILENAME)
+def get_metadata_json(dataset_name: str, dataset_path: str=DATASET_PATH):
+    metadata_path = dataset_path.joinpath(dataset_name, METADATA_FILENAME)
     metadata_json = None
     with open(metadata_path) as fin:
         metadata_json = json.load(fin)
