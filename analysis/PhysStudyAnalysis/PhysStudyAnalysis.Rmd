@@ -775,8 +775,8 @@ Define a common theme
 theme.diff.common = theme(
   legend.position = "none",
   plot.title = element_text(hjust = 0.5),
-  aspect.ratio = 0.4,
-  text = element_text(size = 16)
+  aspect.ratio = 0.3,
+  text = element_text(size = 14)
 )
 ```
 
@@ -868,7 +868,9 @@ fig.diff.final = plot_grid(
     diff.time.plot,
     diff.error.plot,
     diff.conf.plot,
-    nrow = 3
+    nrow = 3,
+    labels = 'AUTO',
+    label_size = 16
 ) + theme(aspect.ratio = 1.5)
 
 ggdraw(fig.diff.final)

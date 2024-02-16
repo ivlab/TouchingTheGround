@@ -3,4 +3,5 @@
 .RData
 .Ruserdata
 /analysis/figures
-/datasets
+/datasets/*
+!/datasets/README.md
