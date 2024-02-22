@@ -562,6 +562,70 @@ kable(conf.tost.results, label = 'Confidence TOST')
 
 
 
+## Secondary Analysis
+
+This section contains secondary analysis, for example demographic info
+
+### Load data
+
+```{r}
+df.time.demographic = data.frame(df.time)
+df.time.demographic$Error[df.time.demographic$Error == 0] <- 0.0001
+df.time.demographic$logError = log(df.time.demographic$Error)
+df.time.demographic$VR.Usage2 = 'Have not used'
+df.time.demographic$Topo.Usage2 = 'Have not used'
+df.time.demographic$VideoGames2 = '< 2 hr/day'
+```
+
+
+### Clean data / replace with binary values
+
+```{r}
+df.time.demographic[
+  df.time.demographic$VR.Usage == '1 to 5 times' |
+  df.time.demographic$VR.Usage == '6 to 20 times' |
+  df.time.demographic$VR.Usage == 'More than 20 times'
+,]$VR.Usage2 = 'Have used'
+
+df.time.demographic[
+  df.time.demographic$Topo.Usage == '1 to 5 times' |
+    df.time.demographic$Topo.Usage == '6 to 20 times' |
+    df.time.demographic$Topo.Usage == 'More than 20 times'
+  ,]$Topo.Usage2 = 'Have used'
+
+df.time.demographic[
+  df.time.demographic$VideoGames == '2hr to 6hr a day' |
+    df.time.demographic$VideoGames == 'More than 6hr a day'
+  ,]$VideoGames2 = '>= 2 hr/day'
+```
+
+
+### Summarize secondary values
+
+```{r}
+vr.usage.summary = summaryWithin(
+  data=df.time.demographic,
+  measure.var="TimeOnTask",
+  within.vars=c('Modality'),
+  between.vars=c('VR.Usage2'),
+  subject.var="ParticipantID",
+  conf.interval=0.95
+)
+
+topo.usage.summary = summaryWithin(
+  data=df.time.demographic,
+  measure.var="TimeOnTask",
+  within.vars=c('Modality'),
+  between.vars=c('Topo.Usage2'),
+  subject.var="ParticipantID",
+  conf.interval=0.95
+)
+
+kable(vr.usage.summary, label = 'VR Usage Statistics')
+kable(topo.usage.summary, label = 'VR Usage Statistics')
+```
+
+
 ## Create Figures
 
 This section contains all the code to generate the results figures in the paper.
