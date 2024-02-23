@@ -635,7 +635,7 @@ This section contains all the code to generate the results figures in the paper.
 Define a common theme for all plots.
 
 ```{r}
-plot.font.size = 14
+plot.font.size = 8
 theme.raw.common = theme(
     legend.position = 'none',
     text = element_text(size = plot.font.size),
@@ -666,7 +666,7 @@ yaxis.advect.values = c(0/360, 15/360, 30/360, 45/360, 60/360)
 advect.error.plot = ggplot(summary.error[summary.error$Task == 'advect',], aes(x=Task, y=mean, fill=Modality)) +
   theme_bw() +
   theme.raw.common +
-  theme(aspect.ratio = 5.5) +
+  # theme(aspect.ratio = 6) +
   scale_fill_brewer(type="qual", palette="Paired") +
   scale_y_continuous('Mean error (degrees)', limits=c(0, 60/360), breaks=yaxis.advect.values, labels = function(i) paste0(round(360 * i), "°")) +
   xlab(NULL) +
@@ -674,20 +674,20 @@ advect.error.plot = ggplot(summary.error[summary.error$Task == 'advect',], aes(x
   geom_errorbar(position=position_dodge(.9), width=.25, aes(ymin=mean-ci.ca, ymax=mean+ci.ca))
 
 # draw image on plot: https://stackoverflow.com/a/54252115
-pimage <- axis_canvas(advect.error.plot, axis = 'y');
-for (v in 1:length(yaxis.advect.values)) {
-  pimage = pimage + draw_image(paste("./analysis/assets/advect-labels-", yaxis.advect.values[v] * 360, ".svg", sep = ""), y = -0.5 + yaxis.advect.values[v], scale = 0.75)
-}
+# pimage <- axis_canvas(advect.error.plot, axis = 'y');
+# for (v in 1:length(yaxis.advect.values)) {
+#   pimage = pimage + draw_image(paste("./analysis/assets/advect-labels-", yaxis.advect.values[v] * 360, ".svg", sep = ""), y = -0.5 + yaxis.advect.values[v], scale = 0.75)
+# }
 
 # insert the image strip into the plot
-advect.error.plot.icons = insert_yaxis_grob(advect.error.plot, pimage, position = "left", width=grid::unit(0.3, "null"))
+# advect.error.plot.icons = insert_yaxis_grob(advect.error.plot, pimage, position = "left", width=grid::unit(0.3, "null"))
 # ggdraw(advect.error.plot.icons)
 
 ### Range Error ####
 range.error.plot = ggplot(summary.error[summary.error$Task == 'range',], aes(x=Task, y=mean, fill=Modality)) +
   theme_bw() +
   theme.raw.common +
-  theme(aspect.ratio = 6) +
+  # theme(aspect.ratio = 6) +
   scale_fill_brewer(type="qual", palette="Paired") +
   scale_y_continuous('Mean error (%)', limits=c(0, 0.15), labels = function(i) paste0(round(100 * i), "%")) +
   xlab(NULL) +
@@ -701,7 +701,7 @@ range.error.plot = ggplot(summary.error[summary.error$Task == 'range',], aes(x=T
 compare.error.plot = ggplot(df.error.compare.summary, aes(x='compare*', y=mean, fill=Modality)) +
   theme_bw() +
   theme.raw.common +
-  theme(aspect.ratio = 6) +
+  # theme(aspect.ratio = 6) +
   theme(axis.title.x = element_blank()) +
 #   theme(axis.title.x = element_text(size=plot.font.size, color = '#555555')) +
 #   xlab('compare*') +
@@ -714,11 +714,12 @@ compare.error.plot = ggplot(df.error.compare.summary, aes(x='compare*', y=mean, 
 
 ### All Error ####
 error.plot = plot_grid(
-  advect.error.plot.icons,
+  # advect.error.plot.icons,
+  advect.error.plot,
   compare.error.plot,
   range.error.plot,
   ncol = 3,
-  rel_widths = c(1.1, 1, 1)
+  rel_widths = c(1, 1, 1)
 ) + theme(aspect.ratio = 0.90, plot.margin = unit(c(0, 1, 0, 1), units = 'cm'))
 x.label = textGrob("Task", gp=gpar(fontsize=plot.font.size))
 plot.title = textGrob("Error", gp=gpar(fontsize=plot.font.size, fontface='bold'))
@@ -754,7 +755,8 @@ fig.raw.final = plot_grid(
     p3,
     ncol = 3,
     labels = "AUTO",
-    rel_widths = c(0.9, 1.5, 0.8)
+    label_size = plot.font.size,
+    rel_widths = c(0.8, 1.6, 0.8)
 ) + theme(aspect.ratio = 0.4)
 
 ggdraw(fig.raw.final)
@@ -764,7 +766,8 @@ Write it to file
 
 ```{r}
 dir.create('./analysis/figures')
-ggsave('./analysis/figures/raw-results.pdf', plot = fig.raw.final)
+# width set from tvcg full page width, ~514.9pt ~~ 7.15in
+ggsave('./analysis/figures/raw-results.pdf', plot = fig.raw.final, width = 7.15, units = "in")
 
 ```
 
@@ -836,11 +839,12 @@ calculateDifference <- function(summary.for.diff, conf.interval) {
 Define a common theme
 
 ```{r}
+plot.font.size = 8
 theme.diff.common = theme(
   legend.position = "none",
-  plot.title = element_text(hjust = 0.5),
+  plot.title = element_text(hjust = 0.5, size = plot.font.size, face = "bold"),
   # aspect.ratio = 0.3,
-  text = element_text(size = 14)
+  text = element_text(size = plot.font.size)
 )
 ```
 
@@ -934,8 +938,8 @@ fig.diff.final = plot_grid(
     diff.conf.plot,
     nrow = 3,
     labels = 'AUTO',
-    label_size = 16
-) + theme(aspect.ratio = 0.9)
+    label_size = plot.font.size
+) + theme(aspect.ratio = 1.1)
 
 ggdraw(fig.diff.final)
 ```
@@ -943,5 +947,6 @@ ggdraw(fig.diff.final)
 
 ```{r}
 dir.create('./analysis/figures')
-ggsave('./analysis/figures/diff-results.pdf', plot = fig.diff.final)
+# width set from tvcg column width, ~251pt ~~ 3.48in
+ggsave('./analysis/figures/diff-results.pdf', plot = fig.diff.final, width = 3.48, units = "in")
 ```
