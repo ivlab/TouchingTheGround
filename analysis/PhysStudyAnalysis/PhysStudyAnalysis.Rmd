@@ -21,6 +21,7 @@ library(cowplot)
 library(grid)
 library(gridExtra)
 library(magick)
+library(plyr)
 
 options(scipen = 999) # disable sci notation
 ```
@@ -190,6 +191,12 @@ summaryWithin <- function(data, measure.var, within.vars, between.vars, subject.
 
   return(s)
 }
+
+
+# https://stackoverflow.com/a/28845828
+write.excel <- function(x,row.names=FALSE,col.names=TRUE,...) {
+  write.table(x,"clipboard",sep="\t",row.names=row.names,col.names=col.names,...)
+}
 ```
 
 
@@ -224,6 +231,13 @@ df.qual.raw = read.csv(paste(data.dir, 'questionnaire-anonymized.csv', sep='/'))
 
 # note - run the preprocess_responses.py Python script first to obtain this file
 df = read.csv(paste(data.dir, 'trials-raw_preprocessed.csv', sep='/'))
+
+# https://stackoverflow.com/a/28845828
+write.excel <- function(x,row.names=FALSE,col.names=TRUE,...) {
+  write.table(x,"clipboard",sep="\t",row.names=row.names,col.names=col.names,...)
+}
+df.coding = read.csv(paste(data.dir, 'questionnaire-normalized.csv', sep='/'))
+
 ```
 
 
@@ -949,4 +963,70 @@ ggdraw(fig.diff.final)
 dir.create('./analysis/figures')
 # width set from tvcg column width, ~251pt ~~ 3.48in
 ggsave('./analysis/figures/diff-results.pdf', plot = fig.diff.final, width = 3.48, units = "in")
+```
+
+
+## Qualitative / Open-Ended Feedback Analysis
+
+Generate tables mentioning the most common positives, negatives, and strategies
+people used in the study
+
+### Clean data
+```{r}
+df.coding.2d = df.coding[df.coding$Modality == '2D',]
+df.coding.vr = df.coding[df.coding$Modality == 'VR',]
+df.coding.phys = df.coding[df.coding$Modality == 'Physical',]
+```
+
+### Positives
+```{r}
+positives.2d = count(c(df.coding.2d$PositiveFactor1, df.coding.2d$PositiveFactor2, df.coding.2d$PositiveFactor3))
+positives.2d = positives.2d[positives.2d$x != '',]
+write.excel(positives.2d[order(positives.2d$freq, decreasing = TRUE),], col.names = FALSE)
+```
+```{r}
+positives.vr = count(c(df.coding.vr$PositiveFactor1, df.coding.vr$PositiveFactor2, df.coding.vr$PositiveFactor3))
+positives.vr = positives.vr[positives.vr$x != '',]
+write.excel(positives.vr[order(positives.vr$freq, decreasing = TRUE),], col.names = FALSE)
+```
+```{r}
+positives.phys = count(c(df.coding.phys$PositiveFactor1, df.coding.phys$PositiveFactor2, df.coding.phys$PositiveFactor3))
+positives.phys = positives.phys[positives.phys$x != '',]
+write.excel(positives.phys[order(positives.phys$freq, decreasing = TRUE),], col.names = FALSE)
+```
+
+### Negatives
+```{r}
+negatives.2d = count(c(df.coding.2d$NegativeFactor1, df.coding.2d$NegativeFactor2, df.coding.2d$NegativeFactor3))
+negatives.2d = negatives.2d[negatives.2d$x != '',]
+write.excel(negatives.2d[order(negatives.2d$freq, decreasing = TRUE),], col.names = FALSE)
+```
+```{r}
+negatives.vr = count(c(df.coding.vr$NegativeFactor1, df.coding.vr$NegativeFactor2, df.coding.vr$NegativeFactor3))
+negatives.vr = negatives.vr[negatives.vr$x != '',]
+write.excel(negatives.vr[order(negatives.vr$freq, decreasing = TRUE),], col.names = FALSE)
+```
+```{r}
+negatives.phys = count(c(df.coding.phys$NegativeFactor1, df.coding.phys$NegativeFactor2, df.coding.phys$NegativeFactor3))
+negatives.phys = negatives.phys[negatives.phys$x != '',]
+write.excel(negatives.phys[order(negatives.phys$freq, decreasing = TRUE),], col.names = FALSE)
+
+```
+
+### Strategies
+```{r}
+strategies.2d = count(c(df.coding.2d$Strategy1, df.coding.2d$Strategy2, df.coding.2d$Strategy3))
+strategies.2d = strategies.2d[strategies.2d$x != '',]
+write.excel(strategies.2d[order(strategies.2d$freq, decreasing = TRUE),], col.names = FALSE)
+```
+```{r}
+strategies.vr = count(c(df.coding.vr$Strategy1, df.coding.vr$Strategy2, df.coding.vr$Strategy3))
+strategies.vr = strategies.vr[strategies.vr$x != '',]
+write.excel(strategies.vr[order(strategies.vr$freq, decreasing = TRUE),], col.names = FALSE)
+
+```
+```{r}
+strategies.phys = count(c(df.coding.phys$Strategy1, df.coding.phys$Strategy2, df.coding.phys$Strategy3))
+strategies.phys = strategies.phys[strategies.phys$x != '',]
+write.excel(strategies.phys[order(strategies.phys$freq, decreasing = TRUE),], col.names = FALSE)
 ```
