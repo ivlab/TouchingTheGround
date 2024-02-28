@@ -1,8 +1,7 @@
 # Datasets used for the study
 
 Due to file size limitations in git, datasets are stored elsewhere. Download the
-[datasets folder from Google
-Drive](https://drive.google.com/drive/folders/1CqUhCszU7mIzGbYXTcshq9biApqZJtCD?usp=drive_link)
+[datasets folder from OSF](https://osf.io/fv3cq)
 and unzip its contents directly into this folder.
 
 - 0-0 - 2-0: Individual datasets. File structure follows:

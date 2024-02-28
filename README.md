@@ -1,14 +1,11 @@
 # Touching the Ground: Evaluating the Effectiveness of Data Physicalizations for
 # Spatial Data Analysis Tasks
 
-This paper is based on Chapter 6 of Bridger Herman's dissertation.
-[The source LaTeX files for the dissertation may be found on GitHub in the ivlab-papers organization](https://github.umn.edu/ivlab-papers/Bridger-Thesis-Proposal).
-
 ## Open Science Foundation Link
 
 All materials will be uploaded to the OSF at https://osf.io/7xdq4/
 
-## Supplemental Materials to be included in this repository
+## Supplemental Materials included in this repository
 
 - [x] README
 - [x] study-data
@@ -21,11 +18,6 @@ All materials will be uploaded to the OSF at https://osf.io/7xdq4/
   - [x] coding-responses.xlsx
 - [x] datasets
   - [x] README
-  - [x] 0-0
-  - [x] 0-1
-  - [x] 0-2
-  - [x] 2-0
-  - [x] sources
 - [x] analysis
   - [x] README
   - [x] r markdown of the final code / tables / figures
