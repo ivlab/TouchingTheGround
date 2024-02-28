@@ -17,8 +17,8 @@ All materials will be uploaded to the OSF at https://osf.io/7xdq4/
   - [x] trials-raw.csv
   - [x] trials-raw_preprocessed.csv
   - [x] confidence.csv
-  - [x] questionnaire-anonymized.csv
-  - [ ] coding-responses.xlsx
+  - [x] questionnaire-normalized.csv
+  - [x] coding-responses.xlsx
 - [x] datasets
   - [x] README
   - [x] 0-0
@@ -35,6 +35,6 @@ All materials will be uploaded to the OSF at https://osf.io/7xdq4/
   - [x] study generation scripts, finger touch, segmentation, etc.
   - [x] task ordering
   - [x] study server
-- [ ] VRModality-Unity
-  - [ ] Unity project for the VR Modality? (Need to be ok with sharing MinVR3 first)
-  - [ ] README
+- [x] VRModality-Unity
+  - [x] Unity project for the VR Modality?
+  - [x] README
