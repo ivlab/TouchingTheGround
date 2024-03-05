@@ -14,10 +14,10 @@ index_to_letter = lambda i: chr(65 + i)
 
 PATH = Path('~/Documents/research/proposal')
 
-MAKE_GEOMETRY = True
-MAKE_LABELS = True
-MAKE_LEGEND = True
-MAKE_FILE_OUTPUT = True
+MAKE_GEOMETRY = False
+MAKE_LABELS = False
+MAKE_LEGEND = False
+MAKE_FILE_OUTPUT = False
 
 class LegendEntry:
     def __init__(self, value, scale, position):
@@ -501,7 +501,6 @@ def main():
     #                 max_elev = loc.z
 
     #         t += iter_step
-
     #     line_elevation_ranges.append((min_elev, max_elev))
 
     # Part 3: Find the maximum height points from Part 1 to use as advection targets
@@ -542,10 +541,10 @@ def main():
 
         # DEBUG
         # bpy.ops.mesh.primitive_uv_sphere_add(radius=1, enter_editmode=False, align='WORLD', location=start_point.world_coord, scale=(1, 1, 1))
-        # for idx in particle_path_short:
-        #     vertices[idx].select = True
-        # start_point.select = True
-        # vertices[start_point.index].select = True
+        for idx in particle_path_short:
+         vertices[idx].select = True
+        start_point.select = True
+        vertices[start_point.index].select = True
 
         # determine the end point on the circle
         end_point = heightmap.matrix_world @ vertices[particle_path_short[-1]].co
@@ -595,7 +594,9 @@ def main():
         # Part 5: calculate range task answers (range task now is a circle -- calculate min/max value within the circle)
         # Sample concentric circles around the surface to find the min/max elevation
         min_elev = float('inf')
+        min_pt = None
         max_elev = 0
+        max_pt = None
         ring_spacing = x_spacing_world
         ring_radius = 0
         while ring_radius < config.advect_radius:
@@ -616,16 +617,22 @@ def main():
                     loc_world = heightmap.matrix_world @ loc
 
                     if loc.z < min_elev:
-                        # bpy.ops.mesh.primitive_uv_sphere_add(radius=1, enter_editmode=False, align='WORLD', location=loc_world, scale=(1, 1, 1))
+#                        bpy.ops.mesh.primitive_uv_sphere_add(radius=1, enter_editmode=False, align='WORLD', location=loc_world, scale=(1, 1, 1))
                         min_elev = loc.z
+                        min_pt = loc_world
                     if loc.z > max_elev:
-                        # bpy.ops.mesh.primitive_cone_add(radius1=1, radius2=0, depth=5, enter_editmode=False, align='WORLD', location=loc_world, scale=(1, 1, 1))
+#                        bpy.ops.mesh.primitive_cone_add(radius1=1, radius2=0, depth=5, enter_editmode=False, align='WORLD', location=loc_world, scale=(1, 1, 1))
                         max_elev = loc.z
+                        max_pt = loc_world
                 t += math.pi / 24
             ring_radius += ring_spacing
 
         advect_answers.append(AdvectAnswer(l, p, start_point.world_coord, end_point, heading_deg, min_elev, max_elev))
         advect_points.append(ppoint)
+
+        # debug
+#        bpy.ops.mesh.primitive_uv_sphere_add(radius=1, enter_editmode=False, align='WORLD', location=min_pt, scale=(1, 1, 1))
+#        bpy.ops.mesh.primitive_uv_sphere_add(radius=1, enter_editmode=False, align='WORLD', location=max_pt, scale=(1, 1, 1))
 
         if len(advect_answers) >= config.num_advect_points:
             break
@@ -1023,7 +1030,7 @@ def main():
     # STAGE 5: Calculate real-world coordinates for each point so it can be used in a geojson
 
     # geo coordinates of origin for geojson
-    bgis = importlib.import_module("BlenderGIS-228")
+    bgis = importlib.import_module("BlenderGIS-master")
     geo_scene = bgis.geoscene.GeoScene(bpy.context.scene)
     config.crsx = geo_scene.crsx
     config.crsy = geo_scene.crsy

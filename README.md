@@ -27,6 +27,8 @@ All materials will be uploaded to the OSF at https://osf.io/7xdq4/
   - [x] study generation scripts, finger touch, segmentation, etc.
   - [x] task ordering
   - [x] study server
+- [x] materials
+  - [x] Study introduction powerpoint
 - [x] VRModality-Unity
   - [x] Unity project for the VR Modality?
   - [x] README
