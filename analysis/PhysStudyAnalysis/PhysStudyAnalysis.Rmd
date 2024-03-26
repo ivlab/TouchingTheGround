@@ -407,11 +407,13 @@ summary.error = summaryWithin(
   between.vars = c(),
   conf.interval=0.95
 )
-summary.error$mean.360 = summary.error$mean * 360
+
+# Normalized error for advect is reporting % of HALF circle away from correct answer.
+summary.error$mean.360 = summary.error$mean * 180
 summary.error$ci.ca.low = summary.error$mean - summary.error$ci.ca
 summary.error$ci.ca.high = summary.error$mean + summary.error$ci.ca
-summary.error$ci.ca.low.360 = summary.error$ci.ca.low * 360
-summary.error$ci.ca.high.360 = summary.error$ci.ca.high * 360
+summary.error$ci.ca.low.360 = summary.error$ci.ca.low * 180
+summary.error$ci.ca.high.360 = summary.error$ci.ca.high * 180
 
 kable(summary.error[c('Task', 'Modality', 'mean', 'ci.ca.low', 'ci.ca.high')], label = 'Normalized error (0-1)')
 kable(summary.error[c('Task', 'Modality', 'mean.360', 'ci.ca.low.360', 'ci.ca.high.360')], label = 'Error as degrees (0-360)')
@@ -678,13 +680,14 @@ The error plot is a bit more complicated since each tasks' error has different u
 
 ```{r}
 ### Advect Error ####
-yaxis.advect.values = c(0/360, 15/360, 30/360, 45/360, 60/360)
+# Normalized error for advect is reporting % of HALF circle away from correct answer.
+yaxis.advect.values = c(0/180, 15/180, 30/180, 45/180)
 advect.error.plot = ggplot(summary.error[summary.error$Task == 'advect',], aes(x=Task, y=mean, fill=Modality)) +
   theme_bw() +
   theme.raw.common +
   # theme(aspect.ratio = 6) +
   scale_fill_brewer(type="qual", palette="Paired") +
-  scale_y_continuous('Mean error (degrees)', limits=c(0, 60/360), breaks=yaxis.advect.values, labels = function(i) paste0(round(360 * i), "°")) +
+  scale_y_continuous('Mean error (degrees)', limits=c(0, 45/180), breaks=yaxis.advect.values, labels = function(i) paste0(round(180 * i), "°")) +
   xlab(NULL) +
   geom_bar(position=position_dodge(.9), stat="identity") +
   geom_errorbar(position=position_dodge(.9), width=.25, linewidth = plot.line.width, aes(ymin=mean-ci.ca, ymax=mean+ci.ca))

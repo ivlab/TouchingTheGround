@@ -55,10 +55,17 @@ def calculate_sort_error(df_row: pd.Series) -> float:
     return 1.0 - ((tau + 1.0) / 2.0)
 
 def calculate_direction_error(df_row: pd.Series) -> float:
+    ''' % of HALF circle away from correct answer '''
     user_direction = df_row['UserAnswer']
     correct_direction = df_row['CorrectAnswer']
-    difference = abs(clock_to_heading(user_direction) - clock_to_heading(correct_direction)) # degrees
-    return difference / 360
+    difference = clock_to_heading(user_direction) - clock_to_heading(correct_direction) # degrees
+    # if we flipped over North
+    if difference < -180:
+        difference += 360
+    elif difference > 180:
+        difference -= 360
+    difference = abs(difference)
+    return difference / 180
 
 
 def load_metadata_jsons(dataset_names):
