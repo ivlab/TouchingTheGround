@@ -1,9 +1,8 @@
-# Touching the Ground: Evaluating the Effectiveness of Data Physicalizations for
-# Spatial Data Analysis Tasks
+# Touching the Ground: Evaluating the Effectiveness of Data Physicalizations for Spatial Data Analysis Tasks
 
 ## Open Science Foundation Link
 
-All materials will be uploaded to the OSF at https://osf.io/7xdq4/
+All materials are uploaded to the OSF at https://osf.io/7xdq4/
 
 ## Supplemental Materials included in this repository
 
